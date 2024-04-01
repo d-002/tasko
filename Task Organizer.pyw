@@ -1,4 +1,4 @@
-VERSION = '1.4.4'
+VERSION = '1.5'
 
 """ Modules to import via pip:
     - pillow
