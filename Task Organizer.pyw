@@ -36,9 +36,8 @@ except ModuleNotFoundError as error:
         name = 'pywin32'
 
     tk = Tk()
-    tk.title('Erreur d\'importation')
     tk.wm_attributes('-alpha', 0)
-    showerror('Erreur d\'importation', 'Ce programme requiert le module %s.\nTéléchargez-le depuis PyPI' %name)
+    showerror('Import error', 'This program requires the %s module.\nPlease download it through PyPI' %name)
     tk.destroy()
     exit()
 
@@ -49,7 +48,7 @@ def quit():
 
 class Colors:
     def __init__(self):
-        self.palettes = [{'name': 'Original', # name of the color palette
+        self.palettes = [{'name': 'Classic', # name of the color palette
                           'blocks': [(255, 50, 0), (255, 210, 10), (50, 255, 0)],
                           'black': (0, 0, 0),
                           'dark': (23, 23, 23),
@@ -67,7 +66,7 @@ class Colors:
                           'white': (35, 35, 35),
                           'red': (255, 0, 0)},
 
-                         {'name': 'Feu',
+                         {'name': 'Dark',
                           'blocks': [(252, 57, 0), (255, 182, 11), (191, 255, 0)],
                           'black': (0, 0, 0),
                           'dark': (33, 14, 14),
@@ -248,11 +247,11 @@ class Todo(Block):
 
 class Add(Block):
     def __init__(self, zone):
-        Block.__init__(self, 'Ajouter', zone)
+        Block.__init__(self, 'New block', zone)
 
     def click(self):
-        add_button = Button('Ajouter', (125, 230))
-        cancel_button = Button('Annuler', (275, 230))
+        add_button = Button('Add block', (125, 230))
+        cancel_button = Button('Cancel', (275, 230))
         entry = Entry((75, 100))
         while True:
             events = pygame_events()
@@ -277,7 +276,7 @@ class Add(Block):
                 return
 
             screen.blit(background2, (0, 0))
-            screen.blit(font.render('Ajouter un objet', 1, colors.light), (75, 50))
+            screen.blit(font.render('Create a new block', 1, colors.light), (75, 50))
             entry.update(events)
             entry.draw()
             add_button.draw()
@@ -374,7 +373,7 @@ class Entry:
         for y in range(len(text)):
             screen.blit(font.render(text[y], 1, colors.light), (self.rect.x+7, self.rect.y + 7 + y*18))
 
-class Scroll: # smooth scroll
+class Scroll: # smooth scroll for all three columns
     def __init__(self, speed):
         self.start = [0, 0, 0]
         self.goal = [0, 0, 0]
@@ -438,7 +437,62 @@ def round_rect(surf, color, size):
     for x_, y_ in [(10, 10), (w-10, 10), (10, h-10), (w-10, h-10)]:
         pygame.draw.circle(surf, color, (x+x_, y+y_), 10)
 
+def setup_tray():
+    global tray
+
+    # set up the tray icon
+    raw_str = pygame.image.tostring(icon, 'RGBA', False)
+    image = Image.frombytes('RGBA', icon.get_size(), raw_str)
+    menu = (pystray.MenuItem('Open', tray_open, default=True),
+            pystray.MenuItem('Minimize', minimize),
+            pystray.MenuItem('Close', tray_close))
+    tray = pystray.Icon('Open', image, 'Task Organizer', menu)
+
+    tray.run() # needs to be in a thread to avoid stopping the program
+
+def tray_open():
+    global WINDOW_VISIBLE
+
+    if not WINDOW_VISIBLE:
+        pygame.display.init()
+        pygame.key.set_repeat(400, 30)
+        init_screen()
+        WINDOW_VISIBLE = True
+
+def minimize():
+    global WINDOW_VISIBLE
+
+    if WINDOW_VISIBLE:
+        if not saved: save() # not gonna autosave when minimized
+        WINDOW_VISIBLE = False
+
+def tray_close():
+    if not WINDOW_VSIBLE: tray_open()
+    pygame.event.post(pygame.event.Event(QUIT))
+
+def minus_button(events):
+    global WINDOW_VISIBLE, obj_hover
+    screen.blit(minus, (minus_rect.x, minus_rect.y+7))
+    if minus_rect.collidepoint(pygame.mouse.get_pos()):
+        obj_hover = 1
+        for event in events:
+            if event.type == MOUSEBUTTONUP:
+                minimize()
+                return True
+
+def close_button(events):
+    global obj_hover
+    screen.blit(cross, (cross_rect.x, cross_rect.y))
+    if cross_rect.collidepoint(pygame.mouse.get_pos()):
+        obj_hover = 1
+        for event in events:
+            if event.type == MOUSEBUTTONUP:
+                pygame.event.post(pygame.event.Event(QUIT))
+
 def save():
+    global saved
+
+    # save blocks
     data = ''
     for group in blocks[:-1]: # do not count the moving block
         for block in group:
@@ -451,7 +505,12 @@ def save():
         f.write(data[:-2].encode()) # save in binary in case of special characters
     with open('files\\last', 'wb') as f:
         f.write(save_file.encode())
-    save_settings()
+
+    # save settings
+    with open('files\\settings', 'w') as f:
+        f.write('%d\n%d\n%d' %(window_position, colors.palette, start_as))
+
+    saved = True
 
 def save_settings():
     with open('files\\settings', 'w') as f:
@@ -500,8 +559,8 @@ def choose_file(start=False):
                 return
 
     filename = Entry((30, 70), [(K_TAB, auto_complete)])
-    filename_btn = Button('Ouvrir', (250, 70), 0)
-    settings_btn = Button('Réglages', (250, 10), 0)
+    filename_btn = Button('Open', (250, 70), 0)
+    settings_btn = Button('Settings', (250, 10), 0)
 
     if start: # when launching, automatically open the last file if it exists
         if os.path.exists('files\\last'):
@@ -518,11 +577,11 @@ def choose_file(start=False):
 
         exists = os.path.exists('files\\%s.txt' %filename.text)
         if exists:
-            text = 'Ouvrir un fichier existant :'
-            filename_btn.change_text('Ouvrir')
+            text = 'Open an existing file :'
+            filename_btn.change_text('Open')
         else:
-            text = 'Créer un nouveau fichier :'
-            filename_btn.change_text('Créer')
+            text = 'Create new file :'
+            filename_btn.change_text('Create')
 
         screen.blit(background2, (0, 0))
         screen.blit(font.render(text, 1, colors.light), (30, 40))
@@ -532,27 +591,28 @@ def choose_file(start=False):
         close_button(events)
 
         if (True in [char in filename.text for char in '\/:*?"<>|']
-            or not len(filename.text.strip()) or filename.text.strip() != filename.text):
-            screen.blit(font.render('Le nom de fichier est invalide.', 1, colors.red), (30, 105))
+            or not len(filename.text.strip()) or filename.text.strip() != filename.text
+            or filename.text.strip() in ('.', '..', '...')):
+            screen.blit(font.render('The file name is invalid.', 1, colors.red), (30, 105))
             invalid = True
         else:
             invalid = False
 
-        screen.blit(font.render('Fichiers pertinents :', 1, colors.light), (30, 130))
+        screen.blit(font.render('Relevant files :', 1, colors.light), (30, 130))
         y = 160
         files = [os.path.splitext(os.path.basename(path))[0] for path in sorted(glob.glob('files\\*.txt'))]
         files = [path for path in files if path.startswith(filename.text)]
         if len(files) > 6: # max 6 lines
-            files = files[:5] + ['...'] # too much files to show
+            files = files[:5] + ['...'] # too many files to show
 
         select_suggestion = False
         for path in files:
+            if path == '...': continue
             text = font.render(path, 1, colors.light)
             screen.blit(text, (35, y))
             if Rect((35, y), text.get_size()).collidepoint(pygame.mouse.get_pos()):
                 obj_hover = 1
                 if pygame.mouse.get_pressed()[0]:
-                    if path == '...': continue
                     filename.text = path # click on a suggestion
                     filename.selected = True
                     pygame.mouse.set_cursor(arrow)
@@ -589,13 +649,13 @@ def settings():
     def make_btns():
         nonlocal back, positions_btns, color_btns, start_as_btn
         back = Button('Retour', (10, 10), 0)
-        positions_btns = [Button(text, pos, 0) for text, pos in [('Haut gauche', (30, 80)), ('Haut droit', (150, 80)),
-                                                                 ('Bas gauche', (30, 130)), ('Bas droit', (150, 130))]]
+        positions_btns = [Button(text, pos, 0) for text, pos in [('Top left', (30, 80)), ('Top right', (150, 80)),
+                                                                 ('Bottom left', (30, 130)), ('Bottom right', (150, 130))]]
         color_btns = [Button(colors.palettes[x]['name'], (30 + 120*(x%3), 200 + 50*(x//3)), 0) for x in range(len(colors.palettes))]
         if start_as:
-            text = 'Normal'
+            text = 'Windowed'
         else:
-            text = 'Réduit'
+            text = 'Minimized'
         start_as_btn = Button(text, (270, 110), 0)
     make_btns()
 
@@ -607,7 +667,7 @@ def settings():
         close_button(events)
 
         # window position
-        screen.blit(font.render('Position de la fenêtre', 1, colors.white), (30, 50))
+        screen.blit(font.render('Window position', 1, colors.white), (30, 50))
         for btn in positions_btns:
             btn.draw()
             if btn.click(events):
@@ -616,14 +676,14 @@ def settings():
                 init_screen() # refresh the screen position
 
         # start as normal or minimized
-        screen.blit(font.render('Ouvrir en', 1, colors.white), (270, 80))
+        screen.blit(font.render('Open as:', 1, colors.white), (270, 80))
         start_as_btn.draw()
         if start_as_btn.click(events):
             start_as = not start_as
             make_btns()
 
         # color palette
-        screen.blit(font.render('Palettes de couleurs', 1, colors.white), (30, 170))
+        screen.blit(font.render('Color palette', 1, colors.white), (30, 170))
         for btn in color_btns:
             btn.draw()
             if btn.click(events):
@@ -642,9 +702,9 @@ def settings():
 
         flip()
 
-def propose_delete():
-    yes = Button('Oui', (125, 230))
-    no = Button('Non', (275, 230))
+def ask_delete():
+    yes = Button('Yes', (125, 230))
+    no = Button('No', (275, 230))
 
     while True:
         events = pygame_events()
@@ -653,12 +713,12 @@ def propose_delete():
         yes.draw()
         no.draw()
         close_button(events)
-        text = font.render('Vous avez tout marqué comme terminé.', 1, colors.light)
+        text = font.render('You completed everything here.', 1, colors.light)
         screen.blit(text, (200-text.get_width()//2, 50))
-        text = font.render('Supprimer le fichier ?', 1, colors.light)
+        text = font.render('Delete this file ?', 1, colors.light)
         screen.blit(text, (200-text.get_width()//2, 80))
 
-        text = font.render('Fichier : "%s"' %save_file, 1, colors.light)
+        text = font.render('Name : "%s"' %save_file, 1, colors.light)
         screen.blit(text, (200-text.get_width()//2, 150))
 
         if yes.click(events):
@@ -671,46 +731,26 @@ def propose_delete():
 
         flip()
 
-def minus_button(events):
-    global WINDOW_VISIBLE, obj_hover
-    screen.blit(minus, (minus_rect.x, minus_rect.y+7))
-    if minus_rect.collidepoint(pygame.mouse.get_pos()):
-        obj_hover = 1
-        for event in events:
-            if event.type == MOUSEBUTTONUP:
-                WINDOW_VISIBLE = False
-                pygame.display.quit()
-                return True
-
-def close_button(events):
-    global obj_hover
-    screen.blit(cross, (cross_rect.x, cross_rect.y))
-    if cross_rect.collidepoint(pygame.mouse.get_pos()):
-        obj_hover = 1
-        for event in events:
-            if event.type == MOUSEBUTTONUP:
-                pygame.event.post(pygame.event.Event(QUIT))
-
 def update():
-    message, changelog, new_version = 'Vous êtes à jour.', '', VERSION
+    message, changelog, new_version = 'Up to date.', '', VERSION
     if gethostbyname(gethostname()) == '127.0.0.1': # offline
-        return 'Vous êtes hors ligne.', changelog, new_version
+        return 'You are offline.', changelog, new_version
     filename = os.path.abspath(__file__)
     try:
-        with urlopen('http://leo.daloz.eu/python/tasko/version.txt') as f:
+        with urlopen('http://website/python/tasko/version.txt') as f:
             new_version = f.read().decode()
             if newer_version(VERSION, new_version) != VERSION: # new version
-                message = "Téléchargement d'une nouvelle version..."
-                with urlopen('http://leo.daloz.eu/python/tasko/code.pyw') as f:
+                message = 'Downloading new version...'
+                with urlopen('http://website/python/tasko/code.pyw') as f:
                     with open(filename, 'wb') as f_:
                         f_.write(f.read())
-                with urlopen('http://leo.daloz.eu/python/tasko/changelog.txt') as f:
+                with urlopen('http://website/python/tasko/changelog.txt') as f:
                     changelog = f.read().decode('utf-8')
     except:
-        message = 'Erreur de connection.'
+        message = 'Connection error.'
     return message, changelog, new_version
 
-def newer_version(v1_, v2_): # this functions classes versions so that 1.0 > 2.0, 1.1 > 1.0, 1.0.1 > 1.0 etc
+def newer_version(v1_, v2_): # this functions classes versions so that 2.0 > 1.0, 1.1 > 1.0, 1.0.1 > 1.0 etc
     v1 = v1_.split('.')
     v2 = v2_.split('.')
     if v1 == v2:
@@ -759,13 +799,13 @@ def intro():
 
     smooth = lambda x: (1-cos(pi*x)) / 2
     start = ticks()
-    while ticks()-start < 5000:
+    while ticks()-start < 1500:
         pygame_events()
         screen.blit(background, (0, 0))
-        screen.blit(colors_surf, (200 - w//2 - min(smooth(min((ticks()-start)/2000, 1)), 1)*2*w, 80))
+        screen.blit(colors_surf, (200 - w//2 - min(smooth(min((ticks()-start)/1500, 1)), 1)*2*w, 80))
         screen.blit(text, (0, 80))
 
-        a = min(max((ticks()-start-2000) * 255 // 1000, 0), 255)
+        a = min(max((ticks()-start-500) * 255 // 500, 0), 255)
         version_msg.set_alpha(a)
         message.set_alpha(a)
         screen.blit(version_msg, (200 - w1//2, 170))
@@ -774,43 +814,43 @@ def intro():
         flip()
 
     if changelog:
-        screen.blit(background, (0, 0))
-        title = font.render('La version %s a été téléchargée.' %new_version, True, colors.light)
-        screen.blit(title, (200 - title.get_width()//2, 20))
-        title = font.render('Modifications apportées :', True, colors.light)
-        screen.blit(title, (200 - title.get_width()//2, 50))
+        changelog = changelog.split('\n')
 
-        y = 90
-        for line in changelog.split('\n'):
-            screen.blit(font.render(line, True, colors.white), (20, y))
-            y += 30
+        title = font.render('Version %s has been downloaded. [OK]' %new_version, True, colors.light)
+        subtitle = font.render('Changelog (see github page) :', True, colors.light)
 
-        pygame.display.flip()
-
+        # set up scroll
+        scroll = 0
+        height = 30*len(changelog)
+        do_scroll = height > 220
         while not True in pygame.key.get_pressed() and not True in pygame.mouse.get_pressed():
-            pygame_events()
+            screen.blit(background, (0, 0))
+            y = 90 - scroll
+            for line in changelog:
+                if 90-18 <= y < 300:
+                    screen.blit(font.render(line, True, colors.white), (20, y))
+                y += 30
+
+            pygame.draw.rect(screen, colors.dark, Rect((0, 0), (400, 80)))
+            screen.blit(title, (200 - title.get_width()//2, 20))
+            screen.blit(subtitle, (200 - subtitle.get_width()//2, 50))
+
+            events = pygame_events()
+            if do_scroll:
+                # update scroll
+                for event in events:
+                    if event.type == MOUSEWHEEL:
+                        scroll -= 20*event.y
+                if scroll < 0: scroll = 0
+                if scroll > height-220: scroll = height-220
+
+                # draw scrollbar
+                y = scroll*220/height
+                pygame.draw.rect(screen, colors.white, Rect(380, y+85, 5, 220**2/height - 10))
+
+            pygame.display.flip()
             close_button(events)
-            clock.tick(10)
-
-def setup_tray():
-    global tray
-
-    # set up the tray icon
-    raw_str = pygame.image.tostring(icon, 'RGBA', False)
-    image = Image.frombytes('RGBA', icon.get_size(), raw_str)
-    menu = (pystray.MenuItem('Ouvrir', click_tray, default=True),)
-    tray = pystray.Icon('Ouvrir', image, 'Task Organiser', menu)
-
-    tray.run() # needs to be in a thread to avoid stopping the program
-
-def click_tray():
-    global WINDOW_VISIBLE
-
-    if not WINDOW_VISIBLE:
-        pygame.display.init()
-        pygame.key.set_repeat(400, 30)
-        init_screen()
-        WINDOW_VISIBLE = True
+            clock.tick(60 if do_scroll else 10)
 
 def init_screen():
     global screen
@@ -868,7 +908,7 @@ def init_surfs():
     pygame.draw.line(cross, colors.red, (4, 16), (16, 4), 4)
     pygame.draw.line(cross, colors.red, (4, 4), (16, 16), 4)
 
-    back = Button('Retour', (10, 10), 0)
+    back = Button('Back', (10, 10), 0)
     minus_rect = Rect((345, 10), (15, 20))
     cross_rect = Rect((370, 10), (20, 20))
 
@@ -881,15 +921,14 @@ def pygame_events():
     alt = pressed[K_LALT] or pressed[K_RALT]
     for event in events:
         if event.type == QUIT:
-            pygame.display.set_caption('Task Organiser - Sauvegarde et arrêt...')
+            pygame.display.set_caption('Task Organiser - Save and quit...')
             screen.blit(background, (0, 0))
-            text = font.render('Sauvegarde et arrêt...', True, colors.light)
+            text = font.render('Save and quit...', True, colors.light)
             w, h = text.get_size()
             screen.blit(text, (200 - w//2, 150 - h//2))
             pygame.display.flip()
 
-            if blocks is not None:
-                save()
+            if blocks is not None: save()
             quit()
         if event.type == KEYDOWN:
             if event.key == K_F4:
@@ -916,7 +955,7 @@ load_settings()
 set_icon() # create colored icon
 blocks = None # to know if save needed when exiting
 
-WINDOW_VISIBLE = start_as
+WINDOW_VISIBLE = bool(start_as)
 Thread(target=setup_tray).start()
 
 pygame.init()
@@ -924,7 +963,7 @@ pygame.key.set_repeat(400, 30) # all keys will now be able to repeat
 
 info = pygame.display.Info()
 
-font = pygame.font.SysFont('calibri', 18, True) # fixed-width font
+font = pygame.font.SysFont('calibri', 18, True)
 pygame.display.set_caption('Task Organiser')
 clock = pygame.time.Clock()
 ticks = pygame.time.get_ticks
@@ -950,6 +989,7 @@ if not start_as:
 
 while True:
     if not WINDOW_VISIBLE:
+        if pygame.display.get_init(): pygame.display.quit()
         clock.tick(1)
         continue
 
@@ -998,14 +1038,13 @@ while True:
 
     if ticks() - last_action_time > 5000 and not saved: # save every 5 seconds
         save()
-        saved = True
 
-    # if everything marked as completed then propose to delete the file
+    # if everything marked as completed then ask to delete the file
     if blocks != prev_state: # do not spam the delete? message, wait for something to change
         last_action_time = ticks()
         saved = False # the content has changed
         if [bool(len(blocks[x])-1) for x in range(4)] in [[0, 0, 0, 1], [0, 0, 1, 1]]:
-            propose_delete()
+            ask_delete()
     prev_state = [group[:] for group in blocks]
 
     if pygame.mouse.get_focused():
@@ -1037,7 +1076,7 @@ while True:
             x = 130 + 90*zone
         else:
             x = 10 + 90*zone
-        text = ['A faire', 'En cours', 'Terminé'][zone]
+        text = ['To do', 'Doing', 'Done'][zone]
         screen.blit(font.render(text, 1, colors.blocks[zone]), (x, 50))
 
         # scroll bars if needed
