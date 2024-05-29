@@ -921,7 +921,7 @@ def pygame_events():
     alt = pressed[K_LALT] or pressed[K_RALT]
     for event in events:
         if event.type == QUIT:
-            pygame.display.set_caption('Task Organiser - Save and quit...')
+            pygame.display.set_caption('Task Organizer - Save and quit...')
             screen.blit(background, (0, 0))
             text = font.render('Save and quit...', True, colors.light)
             w, h = text.get_size()
@@ -964,7 +964,7 @@ pygame.key.set_repeat(400, 30) # all keys will now be able to repeat
 info = pygame.display.Info()
 
 font = pygame.font.SysFont('calibri', 18, True)
-pygame.display.set_caption('Task Organiser')
+pygame.display.set_caption('Task Organizer')
 clock = pygame.time.Clock()
 ticks = pygame.time.get_ticks
 arrow = pygame.cursors.Cursor(SYSTEM_CURSOR_ARROW)
